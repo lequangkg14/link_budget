@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Link Budget Calculator — IoT tầm ngắn</title>
+<style>
+:root{--bg:#eef1f4;--card:#fff;--ink:#12202b;--mut:#5a6b78;--line:#d3dbe2;--sig:#0e7c86;--ok:#1f7a4d;--warn:#b26a00;--bad:#b42318;--soft:#e4f1f2}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1a22;--card:#16252f;--ink:#e6eef3;--mut:#90a4b2;--line:#2a3d4a;--sig:#4fc3cd;--ok:#5ccb8f;--warn:#f0b04a;--bad:#ff8a7a;--soft:#183a40}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.6rem;margin:.2em 0 .1em}
+h2{font-size:1.05rem;margin:0 0 10px}
+.sub{color:var(--mut);margin:0 0 18px;max-width:70ch}
+.grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:16px;align-items:start}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+label{display:block;font-size:.85rem;color:var(--mut);margin:10px 0 3px}
+input,select{width:100%;padding:8px 10px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px}
+input:focus,select:focus,button:focus-visible,tr[tabindex]:focus-visible{outline:2px solid var(--sig);outline-offset:1px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hint{font-size:.78rem;color:var(--mut);margin:3px 0 0}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--mut)}
+tr.env{cursor:pointer}tr.env:hover,tr.env.on{background:var(--soft)}
+.num{font-family:Consolas,"SF Mono",monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.verdict{border-left:6px solid var(--mut);padding:12px 14px;border-radius:6px;background:var(--soft);margin-bottom:16px}
+.verdict.ok{border-color:var(--ok)}.verdict.warn{border-color:var(--warn)}.verdict.bad{border-color:var(--bad)}
+.verdict b.t{font-size:1.15rem}
+.res td:first-child{color:var(--mut)}
+.res td.num{font-weight:600}
+.res tr.key td{background:var(--soft)}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--ink);font:11px "Segoe UI",sans-serif}
+svg .mut{fill:var(--mut)}
+details{margin-top:8px}summary{cursor:pointer;color:var(--sig);font-weight:600}
+code{font-family:Consolas,monospace;font-size:.88em;background:var(--bg);padding:1px 5px;border-radius:4px}
+.f{margin:6px 0;line-height:1.7}
+footer{color:var(--mut);font-size:.8rem;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Link Budget Calculator</h1>
+<p class="sub">Nhập thông số từ datasheet, chọn môi trường, trang sẽ tự tính công suất thu, biên dự trữ, suy hao tối đa và khoảng cách phủ sóng tối đa cho liên kết IoT tầm ngắn (LoRa, Zigbee, WiFi).</p>
+
+<div class="grid">
+<div>
+  <div class="card">
+    <h2>1. Chuẩn kết nối (điền nhanh)</h2>
+    <select id="preset" aria-label="Chọn chuẩn"></select>
+    <p class="hint" id="pnote"></p>
+  </div>
+  <div class="card">
+    <h2>2. Thông số từ datasheet</h2>
+    <div class="row">
+      <div><label for="pt">Công suất phát Pt (dBm)</label><input id="pt" type="number" step="0.5"></div>
+      <div><label for="sens">Độ nhạy máy thu (dBm)</label><input id="sens" type="number" step="0.5"></div>
+      <div><label for="gt">Độ lợi anten phát Gt (dBi)</label><input id="gt" type="number" step="0.5"></div>
+      <div><label for="gr">Độ lợi anten thu Gr (dBi)</label><input id="gr" type="number" step="0.5"></div>
+      <div><label for="lc">Suy hao cáp/đầu nối (dB)</label><input id="lc" type="number" step="0.5" min="0"></div>
+      <div><label for="f">Tần số f (MHz)</label><input id="f" type="number" step="1" min="1"></div>
+    </div>
+    <p class="hint">Pt: mục “Output Power”. Độ nhạy: mục “RX Sensitivity” (LoRa: theo SF và BW; WiFi/Zigbee: theo tốc độ/MCS). Số điền sẵn chỉ là giá trị điển hình, hãy đối chiếu datasheet module của bạn.</p>
+  </div>
+  <div class="card">
+    <h2>3. Môi trường và hệ số n</h2>
+    <table id="envs"><thead><tr><th>Môi trường (bấm để chọn)</th><th>n điển hình</th></tr></thead><tbody></tbody></table>
+    <div class="row">
+      <div><label for="n">Hệ số n đang dùng</label><input id="n" type="number" step="0.1" min="1" max="8"></div>
+      <div><label for="d0">Khoảng cách tham chiếu d₀ (m)</label><input id="d0" type="number" step="0.5" min="0.1"></div>
+    </div>
+    <p class="hint">n càng lớn, tín hiệu suy giảm càng nhanh theo khoảng cách. Giá trị thật phụ thuộc vật liệu tường và vật cản, hãy xem đây là ước lượng.</p>
+  </div>
+  <div class="card">
+    <h2>4. Điều kiện triển khai</h2>
+    <div class="row">
+      <div><label for="dt">Khoảng cách cần phủ (m)</label><input id="dt" type="number" step="1" min="1"></div>
+      <div><label for="mg">Biên dự trữ mong muốn (dB)</label><input id="mg" type="number" step="1" min="0"></div>
+    </div>
+    <p class="hint">Thiết kế thực tế thường giữ 10–20 dB dự trữ để chịu fading và nhiễu.</p>
+  </div>
+</div>
+
+<div>
+  <div id="verdict" class="verdict" aria-live="polite"></div>
+  <div class="card">
+    <h2>Kết quả tính toán</h2>
+    <table class="res"><tbody id="res"></tbody></table>
+  </div>
+  <div class="card">
+    <h2>Ngân sách công suất tại khoảng cách cần phủ</h2>
+    <svg id="wf" viewBox="0 0 640 230" role="img" aria-label="Biểu đồ ngân sách liên kết"></svg>
+  </div>
+  <div class="card">
+    <h2>Công suất thu theo khoảng cách</h2>
+    <svg id="curve" viewBox="0 0 640 260" role="img" aria-label="Đồ thị công suất thu theo khoảng cách"></svg>
+  </div>
+  <div class="card">
+    <h2>So sánh khoảng cách tối đa theo môi trường</h2>
+    <table><thead><tr><th>Môi trường</th><th class="num">n</th><th class="num">Lý thuyết</th><th class="num">Có dự trữ</th></tr></thead><tbody id="cmp"></tbody></table>
+  </div>
+</div>
+</div>
+
+<div class="card">
+  <h2>Công thức đang dùng</h2>
+  <details open><summary>Xem công thức</summary>
+    <div class="f">FSPL(d₀) = 20·log₁₀(d₀/1000) + 20·log₁₀(f) + 32.44 &nbsp; (d₀ tính m, f tính MHz)</div>
+    <div class="f">PathLoss(d) = PathLoss(d₀) + 10·n·log₁₀(d/d₀)</div>
+    <div class="f">Pr = Pt + Gt + Gr − Lcáp − PathLoss(d) &nbsp;|&nbsp; Link margin = Pr − Sensitivity</div>
+    <div class="f">PathLoss_max = Pt + Gt + Gr − Lcáp − Sensitivity</div>
+    <div class="f">d_max = d₀ · 10^[(PathLoss_max − PathLoss(d₀)) / (10·n)]</div>
+    <div class="f">Có dự trữ M dB: thay PathLoss_max bằng PathLoss_max − M.</div>
+  </details>
+</div>
+<footer>Công cụ học tập. Kết quả là ước lượng lý thuyết, chưa tính nhiễu, đa đường hay địa hình cụ thể.</footer>
+</div>
+
+<script>
+const PRESETS=[
+ {k:"LoRa SF7, BW125, 868 MHz",pt:14,sens:-123,gt:3,gr:3,lc:0,f:868,note:"SX127x điển hình. SF càng cao, độ nhạy càng tốt nhưng tốc độ càng thấp."},
+ {k:"LoRa SF9, BW125, 868 MHz",pt:14,sens:-129,gt:3,gr:3,lc:0,f:868,note:"Cân bằng giữa tầm phủ và tốc độ."},
+ {k:"LoRa SF12, BW125, 868 MHz",pt:14,sens:-137,gt:3,gr:3,lc:0,f:868,note:"Tầm xa nhất, tốc độ rất thấp."},
+ {k:"LoRa SF7, BW125, 433 MHz",pt:14,sens:-123,gt:3,gr:3,lc:0,f:433,note:"Băng 433 MHz, suy hao thấp hơn 868 MHz."},
+ {k:"LoRa SF7, BW125, 915 MHz",pt:20,sens:-123,gt:3,gr:3,lc:0,f:915,note:"Băng 915 MHz, một số module phát tới +20 dBm."},
+ {k:"Zigbee 802.15.4, 2.4 GHz",pt:4,sens:-97,gt:2,gr:2,lc:0,f:2440,note:"Chip CC2530/CC2652 điển hình, anten PCB/chip."},
+ {k:"WiFi 802.11b 1 Mbps, 2.4 GHz",pt:18,sens:-96,gt:3,gr:3,lc:0,f:2437,note:"Tốc độ thấp nhất nên độ nhạy tốt nhất."},
+ {k:"WiFi 802.11n MCS0, 2.4 GHz",pt:15,sens:-82,gt:3,gr:3,lc:0,f:2437,note:"ESP32 điển hình. Tốc độ cao hơn thì độ nhạy kém hơn."},
+ {k:"Tự nhập",pt:14,sens:-120,gt:2,gr:2,lc:0,f:868,note:"Điền thông số từ datasheet của bạn."}
+];
+const ENVS=[
+ ["Không gian tự do, ngoài trời tầm nhìn thẳng",2.0,"2.0"],
+ ["Trong nhà, hành lang thẳng",1.7,"1.6 – 1.8"],
+ ["Ngoài trời, đô thị thoáng",2.7,"2.7 – 3.5"],
+ ["Trong nhà, qua tường/vách ngăn",3.5,"3.0 – 4.0"],
+ ["Trong nhà, nhiều tầng/bê tông cốt thép",4.5,"4.0 – 5.0"]
+];
+const $=id=>document.getElementById(id);
+const ids=["pt","sens","gt","gr","lc","f","n","d0","dt","mg"];
+const val=id=>parseFloat($(id).value);
+const log=Math.log10;
+const fmtD=m=>!isFinite(m)?"—":m>=1000?(m/1000).toFixed(m>=10000?1:2)+" km":m>=10?m.toFixed(0)+" m":m.toFixed(1)+" m";
+const fd=(x,u="dB",p=1)=>(isFinite(x)?x.toFixed(p):"—")+" "+u;
+
+// khởi tạo
+PRESETS.forEach((p,i)=>$("preset").add(new Option(p.k,i)));
+const tb=document.querySelector("#envs tbody");
+ENVS.forEach((e,i)=>{const r=tb.insertRow();r.className="env";r.tabIndex=0;r.innerHTML=`<td>${e[0]}</td><td class="num">${e[2]}</td>`;
+ const pick=()=>{$("n").value=e[1];calc()};r.onclick=pick;r.onkeydown=ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();pick()}}});
+function applyPreset(){const p=PRESETS[$("preset").value];["pt","sens","gt","gr","lc","f"].forEach(k=>$(k).value=p[k]);$("pnote").textContent=p.note;calc()}
+$("preset").onchange=applyPreset;
+ids.forEach(i=>$(i).addEventListener("input",()=>{if(i!=="n"&&i!=="d0"&&i!=="dt"&&i!=="mg")$("preset").value=PRESETS.length-1;calc()}));
+$("n").value=2.7;$("d0").value=1;$("dt").value=500;$("mg").value=15;applyPreset();
+
+function core(n){
+ const pt=val("pt"),gt=val("gt"),gr=val("gr"),lc=val("lc")||0,s=val("sens"),f=val("f"),d0=val("d0"),mg=val("mg")||0;
+ const pl0=20*log(d0/1000)+20*log(f)+32.44, plmax=pt+gt+gr-lc-s;
+ const dm=d0*Math.pow(10,(plmax-pl0)/(10*n)), ds=d0*Math.pow(10,(plmax-mg-pl0)/(10*n));
+ return{pt,gt,gr,lc,s,f,d0,mg,pl0,plmax,dm,ds,n,eirp:pt+gt-lc};
+}
+function calc(){
+ if(ids.some(i=>isNaN(val(i))&&i!=="lc"&&i!=="mg"))return;
+ const n=val("n"),dt=val("dt"),c=core(n);
+ const pld=c.pl0+10*n*log(dt/c.d0), pr=c.pt+c.gt+c.gr-c.lc-pld, marg=pr-c.s;
+ const rows=[["Công suất bức xạ EIRP = Pt + Gt − Lcáp",fd(c.eirp,"dBm"),0],
+  ["Suy hao tham chiếu PathLoss(d₀), FSPL",fd(c.pl0),0],
+  ["Suy hao tối đa cho phép PathLoss_max",fd(c.plmax),0],
+  ["Khoảng cách tối đa lý thuyết (dự trữ 0 dB)",fmtD(c.dm),1],
+  [`Khoảng cách khuyến nghị (dự trữ ${c.mg} dB)`,fmtD(c.ds),1],
+  [`Suy hao tại ${fmtD(dt)}`,fd(pld),0],
+  ["Công suất thu Pr",fd(pr,"dBm"),0],
+  ["Link margin = Pr − Sensitivity",fd(marg),1]];
+ $("res").innerHTML=rows.map(r=>`<tr class="${r[2]?"key":""}"><td>${r[0]}</td><td class="num">${r[1]}</td></tr>`).join("");
+ verdict(c,dt,pr,marg);wf(c,dt,pld,pr);curve(c,dt);
+ $("cmp").innerHTML=ENVS.map(e=>{const k=core(e[1]);return`<tr class="${e[1]==n?"on":""}"><td>${e[0]}</td><td class="num">${e[1]}</td><td class="num">${fmtD(k.dm)}</td><td class="num">${fmtD(k.ds)}</td></tr>`}).join("");
+}
+function verdict(c,dt,pr,m){
+ const v=$("verdict"),name=PRESETS[$("preset").value].k;
+ let cls,t;
+ if(m<0){cls="bad";t="Không đạt: liên kết mất kết nối"}
+ else if(m<c.mg){cls="warn";t="Đạt nhưng biên dự trữ thấp"}
+ else{cls="ok";t="Đạt: liên kết ổn định"}
+ let s=`Tại ${fmtD(dt)} với n = ${c.n}, công suất thu là ${pr.toFixed(1)} dBm so với độ nhạy ${c.s} dBm, tức link margin ${m.toFixed(1)} dB (mong muốn ≥ ${c.mg} dB). `;
+ s+=`Khoảng cách tối đa lý thuyết là ${fmtD(c.dm)}; với dự trữ ${c.mg} dB nên triển khai trong khoảng ${fmtD(c.ds)}. `;
+ if(m<0)s+=`Cách cải thiện: tăng Pt hoặc độ lợi anten, chọn độ nhạy tốt hơn (ví dụ tăng SF của LoRa), giảm khoảng cách hoặc chọn vị trí ít vật cản hơn (n nhỏ hơn).`;
+ else if(m<c.mg)s+=`Liên kết vẫn chạy được nhưng dễ đứt khi có nhiễu hoặc vật cản mới; nên giảm khoảng cách hoặc tăng độ lợi.`;
+ else s+=`Còn dư ${(m-c.mg).toFixed(1)} dB so với mức mong muốn.`;
+ if(c.dm>30000)s+=` Lưu ý: khoảng cách lý thuyết rất lớn, thực tế sẽ bị giới hạn bởi độ cong Trái Đất và địa hình.`;
+ v.className="verdict "+cls;v.innerHTML=`<b class="t">${t}</b><br><span class="mut">${name}</span><p style="margin:.5em 0 0">${s}</p>`;
+}
+function wf(c,dt,pld,pr){
+ const st=[["Pt",c.pt,"Pt"],["+ Gt",c.gt,""],["− Lcáp",-c.lc,""],["− PathLoss",-pld,""],["+ Gr",c.gr,""]];
+ let lv=0,seg=[];st.forEach(s=>{seg.push([s[0],lv,lv+s[1]]);lv+=s[1]});
+ const all=seg.flatMap(s=>[s[1],s[2]]).concat([c.s,pr]),lo=Math.min(...all)-8,hi=Math.max(...all)+8;
+ const X=v=>150+(v-lo)/(hi-lo)*470,rh=28;let o="";
+ seg.forEach((s,i)=>{const a=X(Math.min(s[1],s[2])),w=Math.max(2,Math.abs(X(s[2])-X(s[1])));
+  const y=10+i*36,col=s[2]<s[1]?"var(--bad)":"var(--sig)";
+  o+=`<text x="4" y="${y+18}">${s[0]}</text><rect x="${a}" y="${y}" width="${w}" height="${rh}" fill="${col}" rx="3" opacity=".85"/><text class="mut" x="${a+w+5>560?a-5:a+w+5}" y="${y+18}" text-anchor="${a+w+5>560?"end":"start"}">${s[2]-s[1]>=0?"+":""}${(s[2]-s[1]).toFixed(1)}</text>`});
+ const y=10+5*36;
+ o+=`<text x="4" y="${y+18}" style="font-weight:700">Pr</text><rect x="${Math.min(X(pr),X(lo))}" y="${y}" width="${Math.max(2,X(pr)-X(lo))}" height="${rh}" fill="${pr>=c.s?"var(--ok)":"var(--bad)"}" rx="3"/><text x="${X(pr)+5}" y="${y+18}" style="font-weight:700">${pr.toFixed(1)} dBm</text>`;
+ const sx=X(c.s);o+=`<line x1="${sx}" x2="${sx}" y1="2" y2="${y+34}" stroke="var(--warn)" stroke-width="2" stroke-dasharray="5 4"/><text x="${sx+4}" y="${y+46}" fill="var(--warn)" style="fill:var(--warn)">Sensitivity ${c.s} dBm</text>`;
+ $("wf").innerHTML=o;
+}
+function curve(c,dt){
+ const xmax=Math.max(c.dm*2,dt*2,c.d0*10),xmin=c.d0,L=(d)=>c.pt+c.gt+c.gr-c.lc-(c.pl0+10*c.n*log(d/c.d0));
+ const ymax=Math.ceil(L(xmin)/10)*10,ymin=Math.floor((c.s-15)/10)*10;
+ const X=d=>50+(log(d)-log(xmin))/(log(xmax)-log(xmin))*570,Y=v=>10+(ymax-v)/(ymax-ymin)*210;
+ let o="";for(let v=ymin;v<=ymax;v+=10)o+=`<line x1="50" x2="620" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text class="mut" x="46" y="${Y(v)+4}" text-anchor="end">${v}</text>`;
+ const pts=[];for(let i=0;i<=80;i++){const d=xmin*Math.pow(xmax/xmin,i/80);pts.push(X(d).toFixed(1)+","+Math.max(10,Math.min(220,Y(L(d)))).toFixed(1))}
+ o+=`<polyline points="${pts.join(" ")}" fill="none" stroke="var(--sig)" stroke-width="2.5"/>`;
+ o+=`<line x1="50" x2="620" y1="${Y(c.s)}" y2="${Y(c.s)}" stroke="var(--warn)" stroke-width="2" stroke-dasharray="5 4"/><text x="54" y="${Y(c.s)-5}" style="fill:var(--warn)">Sensitivity</text>`;
+ const mk=(d,col,lb,dy)=>{if(d<xmin||d>xmax)return"";return`<line x1="${X(d)}" x2="${X(d)}" y1="10" y2="220" stroke="${col}" stroke-dasharray="3 3"/><text x="${X(d)+4}" y="${dy}" style="fill:${col}">${lb}</text>`};
+ o+=mk(c.dm,"var(--bad)","d_max "+fmtD(c.dm),24)+mk(dt,"var(--ink)","cần phủ "+fmtD(dt),40);
+ [1,10,100,1e3,1e4,1e5].filter(d=>d>=xmin&&d<=xmax).forEach(d=>o+=`<text class="mut" x="${X(d)}" y="238" text-anchor="middle">${fmtD(d)}</text>`);
+ o+=`<text class="mut" x="335" y="254" text-anchor="middle">Khoảng cách (thang log) — trục dọc: Pr (dBm)</text>`;
+ $("curve").innerHTML=o;
+}
+calc();
+</script>
+</body>
+</html>
